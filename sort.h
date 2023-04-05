@@ -1,29 +1,28 @@
-#pragma once
+Ôªø#pragma once
 #include <vector>
 #include <stack>
 
-typedef struct sortInfo_tag {
-	int comparison;
-	int exchange;
+typedef struct {
+	const char* name;
+	int64_t comparison;
+	int64_t exchange;
+	int64_t stackDepth;
+	int64_t count;
 	uint64_t time;
-	int other;
-}sortInfo;
+}statistic;
 
-/* 1.√∞≈›≈≈–Ú */
-std::vector<int>& sort_bubble(std::vector<int>& arr, sortInfo& info);
-/* 2.—°‘Ò≈≈–Ú */
-std::vector<int>& sort_selection(std::vector<int>& arr, sortInfo& info);
-/* 3.≤Â»Î≈≈À≥ */
-std::vector<int>& sort_insertion(std::vector<int>& arr, sortInfo& info);
-/* 4.œ£∂˚≈≈–Ú */
-std::vector<int>& sort_shell(std::vector<int>& arr, sortInfo& info);
-/* 5.øÏÀŸ≈≈–Ú */
-std::vector<int>& sort_quick(std::vector<int>& arr, sortInfo& info);
-std::vector<int>& sort_quick2(std::vector<int>& arr, sortInfo& info);
-std::vector<int>& sort_quick3(std::vector<int>& arr, sortInfo& info);
-/* 6.∂—≈≈–Ú */
-std::vector<int>& sort_heap(std::vector<int>& arr, sortInfo& info);
-/* 7.πÈ≤¢≈≈–Ú */
-std::vector<int>& sort_merge(std::vector<int>& arr, sortInfo& info);
-/* º∆ ˝≈≈–Ú */
-std::vector<int>& sort_counting(std::vector<int>& arr, sortInfo& info);
+#define STATISITIC_ON
+
+#ifdef STATISITIC_ON
+#define COMPARISON_INC ++info.comparison&&
+#define EXCHANGE_INC ++info.exchange;
+#define STACK_START {++info.count; if (info.count > info.stackDepth) {info.stackDepth = info.count;}}
+#define STACK_END --info.count;
+#else
+#define COMPARISON_INC
+#define EXCHANGE_INC
+#define STACK_START
+#define STACK_END
+#endif
+
+void sort_test();
