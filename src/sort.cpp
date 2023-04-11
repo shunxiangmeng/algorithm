@@ -108,7 +108,7 @@ void sort_selection2(std::vector<int>& arr, statistic& info) {
         }
     }
 }
-/* 3.插入排顺 */
+/* 3.插入排序 */
 void sort_insertion(std::vector<int>& arr, statistic& info) {
     for (int i = 1; i < arr.size(); i++) {
         int preIndex = i - 1;
