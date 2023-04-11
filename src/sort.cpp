@@ -1,6 +1,13 @@
 ﻿#include <chrono>
 #include <random>
 #include "sort.h"
+#ifndef _WIN32
+#include <sys/times.h>
+#include <unistd.h>
+#endif
+#include <map>
+#include <unordered_map>
+#include <string>
 
 /* 1.冒泡排序 */
 void sort_bubble(std::vector<int> &arr, statistic& info) {
@@ -72,6 +79,35 @@ void sort_selection(std::vector<int>& arr, statistic& info) {
         }
     }
 }
+void sort_selection2(std::vector<int>& arr, statistic& info) {
+    for (int left = 0, right = arr.size() - 1; left < right; left++, right--) {
+        int minIndex = left;
+        int maxIndex = right;
+        for (int i = left; i <= right; i++) {
+            if (COMPARISON_INC arr[i] < arr[minIndex]) {
+                minIndex = i;
+            }
+            if (COMPARISON_INC arr[i] > arr[maxIndex]) {
+                maxIndex = i;
+            }
+        }
+        if (minIndex != left) {
+            int temp = arr[left];
+            arr[left] = arr[minIndex];
+            arr[minIndex] = temp;
+            EXCHANGE_INC
+        }
+        if (maxIndex == left) {  //先交换left，需要考虑最大值就在left的情况
+            maxIndex = minIndex;
+        }
+        if (maxIndex != right) {
+            int temp = arr[right];
+            arr[right] = arr[maxIndex];
+            arr[maxIndex] = temp;
+            EXCHANGE_INC
+        }
+    }
+}
 /* 3.插入排顺 */
 void sort_insertion(std::vector<int>& arr, statistic& info) {
     for (int i = 1; i < arr.size(); i++) {
@@ -79,7 +115,7 @@ void sort_insertion(std::vector<int>& arr, statistic& info) {
         int current = arr[i];
         while (preIndex >= 0 && COMPARISON_INC current < arr[preIndex]) {
             arr[preIndex + 1] = arr[preIndex];
-            preIndex--;
+            preIndex = preIndex - 1;
             EXCHANGE_INC
         }
         arr[preIndex + 1] = current;
@@ -88,18 +124,39 @@ void sort_insertion(std::vector<int>& arr, statistic& info) {
 
 /* 4.希尔排序 */
 void sort_shell(std::vector<int>& arr, statistic& info) {
-    int length = arr.size();
-    for (int gap = length / 2; gap > 0; gap = gap / 2) {
-        for (int i = gap; i < length; i++) {
-            int k = i;
-            int current = arr[k];
-            while (k - gap >= 0 && COMPARISON_INC current < arr[k - gap]) {
-                arr[k] = arr[k - gap];
-                k = k - gap;
+    for (int gap = arr.size() / 2; gap > 0; gap = gap / 2) {
+        for (int i = gap; i < arr.size(); i++) {
+            int preIndex = i - gap;
+            int current = arr[i];
+            while (preIndex >= 0 && COMPARISON_INC current < arr[preIndex]) {
+                arr[preIndex + gap] = arr[preIndex];
+                preIndex = preIndex - gap;
                 EXCHANGE_INC
             }
-            arr[k] = current;
+            arr[preIndex + gap] = current;
         }
+    }
+}
+
+static inline void sort_insertion_gap(std::vector<int>& arr, int gap, statistic& info) {
+    for (int i = gap; i < arr.size(); i++) {
+        int preIndex = i - gap;
+        int current = arr[i];
+        while (preIndex >= 0 && COMPARISON_INC current < arr[preIndex]) {
+            arr[preIndex + gap] = arr[preIndex];
+            preIndex = preIndex - gap;
+            EXCHANGE_INC
+        }
+        arr[preIndex + gap] = current;
+    }
+}
+void sort_shell22(std::vector<int>& arr, statistic& info) {
+    int gap = 0;
+    for (gap = arr.size() / 2; gap > 0; gap = int(gap*1.0 / 2.2)) {
+        sort_insertion_gap(arr, gap, info);
+    }
+    if (gap != 1) {
+        sort_insertion_gap(arr, 1, info);
     }
 }
 
@@ -131,7 +188,7 @@ static void Merge(std::vector<int>& arr, int left, int mid, int right, statistic
 }
 
 static void sortMerge(std::vector<int>& arr, int left, int right, statistic& info) {
-    STACK_START
+    STACK_COUNT
     if (left == right) {
         return;  //递归基是让数组中的每个数单独成为长度为1的区间
     }
@@ -139,7 +196,6 @@ static void sortMerge(std::vector<int>& arr, int left, int right, statistic& inf
     sortMerge(arr, left, mid, info);
     sortMerge(arr, mid + 1, right, info);
     Merge(arr, left, mid, right, info);
-    STACK_END
 }
 
 /* 5.归并排序 */
@@ -147,8 +203,13 @@ void sort_merge(std::vector<int>& arr, statistic& info) {
     sortMerge(arr, 0, arr.size() - 1, info);
 }
 
-/* 快速排序 */
 static inline int partition(std::vector<int>& arr, int left, int right, statistic& info) {
+    uint64_t t = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    int mid = t % (right - left) + left;
+    int temp = arr[left];
+    arr[left] = arr[mid];
+    arr[mid] = temp;
+
     int pivot = arr[left]; /* 在最左边挖了一个坑，并临时保存坑中的元素，此时left指向这个坑 */
     while (left < right) {
         while (left < right && COMPARISON_INC arr[right] >= pivot) {
@@ -165,7 +226,7 @@ static inline int partition(std::vector<int>& arr, int left, int right, statisti
     return left;
 }
 static inline void quickSort(std::vector<int>& arr, int left, int right, statistic& info) {
-    STACK_START
+    STACK_COUNT
     if (left >= right) {
         return;
     }
@@ -176,121 +237,16 @@ static inline void quickSort(std::vector<int>& arr, int left, int right, statist
     if (position < right) {
         quickSort(arr, position + 1, right, info);
     }
-    STACK_END
 }
-//////////////////////
-static inline int partition_mid(std::vector<int>& arr, int left, int right, statistic& info) {
-    int mid = (right - left) / 2 + left;
-    int temp = arr[left];
-    arr[left] = arr[mid];
-    arr[mid] = temp;
-
-    int pivot = arr[left]; /* 在最左边挖了一个坑，并临时保存坑中的元素，此时left指向这个坑 */
-    while (left < right) {
-        while (left < right && COMPARISON_INC arr[right] >= pivot) {
-            right--;
-        }
-        arr[left] = arr[right]; /* 从右往左，找到第一个小于基准的值，与坑进行互换 */
-        while (left < right && COMPARISON_INC arr[left] <= pivot) {
-            left++;
-        }
-        arr[right] = arr[left]; /* 从左望右，找到第一个大于基数的值，与坑进行互换 */
-        EXCHANGE_INC
-    }
-    arr[left] = pivot; /* 把基准填入最后一个坑 */
-    return left;
-}
-static inline void quickSort_mid(std::vector<int>& arr, int left, int right, statistic& info) {
-    STACK_START
-    if (left >= right) {
-        return;
-    }
-    int position = partition_mid(arr, left, right, info);
-    if (position > left) {
-        quickSort_mid(arr, left, position - 1, info);
-    }
-    if (position < right) {
-        quickSort_mid(arr, position + 1, right, info);
-    }
-    STACK_END
-}
-void sort_quick_mid(std::vector<int>& arr, statistic& info) {
-    quickSort_mid(arr, 0, arr.size() - 1, info);
-}
-
-static inline int partition_random(std::vector<int>& arr, int left, int right, statistic& info) {
-    std::default_random_engine random(time(NULL));
-    std::uniform_int_distribution<int> dis1(left, right);
-    int mid = dis1(random);
-    int temp = arr[left];
-    arr[left] = arr[mid];
-    arr[mid] = temp;
-
-    int pivot = arr[left]; /* 在最左边挖了一个坑，并临时保存坑中的元素，此时left指向这个坑 */
-    while (left < right) {
-        while (left < right && COMPARISON_INC arr[right] >= pivot) {
-            right--;
-        }
-        arr[left] = arr[right]; /* 从右往左，找到第一个小于基准的值，与坑进行互换 */
-        while (left < right && COMPARISON_INC arr[left] <= pivot) {
-            left++;
-        }
-        arr[right] = arr[left]; /* 从左望右，找到第一个大于基数的值，与坑进行互换 */
-        EXCHANGE_INC
-    }
-    arr[left] = pivot; /* 把基准填入最后一个坑 */
-    return left;
-}
-static inline void quickSort_random(std::vector<int>& arr, int left, int right, statistic& info) {
-    STACK_START
-    if (left >= right) {
-        return;
-    }
-    int position = partition_random(arr, left, right, info);
-    if (position > left) {
-        quickSort_random(arr, left, position - 1, info);
-    }
-    if (position < right) {
-        quickSort_random(arr, position + 1, right, info);
-    }
-    STACK_END
-}
-void sort_quick_random(std::vector<int>& arr, statistic& info) {
-    quickSort_random(arr, 0, arr.size() - 1, info);
-}
-/////////////////////////
 
 /* 6.快速排序 */
 void sort_quick(std::vector<int>& arr, statistic& info) {
     quickSort(arr, 0, arr.size() - 1, info);
 }
-
-void sort_quick2(std::vector<int>& arr, statistic& info) {
-    std::stack<int> stack;
-    int left = 0, right = arr.size() - 1;
-    stack.push(right);
-    stack.push(left);
-    while (!stack.empty()) {
-        left = stack.top(); stack.pop();
-        right = stack.top(); stack.pop();
-        if (left < right) 
-        {
-            int position = partition(arr, left, right, info);
-            if (position > left) {
-                stack.push(position - 1);
-                stack.push(left);
-            }
-            if (position < right) {
-                stack.push(right);
-                stack.push(position + 1);
-            }
-        }
-    }
-}
-
-void sort_quick3(std::vector<int>& arr, statistic& info) {
+/*使用迭代替换递归方式的快速排序, 问题是stack数组开多大呢*/
+void sort_quick_stack(std::vector<int>& arr, statistic& info) {
     //std::stack<int> stack;
-    int stack[1024*10];
+    int stack[1024 * 10] = { 0 };
     int top = 0;
     int left = 0, right = arr.size() - 1;
     stack[top++] = right;
@@ -298,8 +254,7 @@ void sort_quick3(std::vector<int>& arr, statistic& info) {
     while (top > 0) {
         left = stack[--top];
         right = stack[--top];
-        if (left < right)
-        {
+        if (left < right) {
             int position = partition(arr, left, right, info);
             if (position > left) {
                 stack[top++] = position - 1;
@@ -315,7 +270,7 @@ void sort_quick3(std::vector<int>& arr, statistic& info) {
 
 /* 调整大顶堆 */
 static inline void heapify(std::vector<int>& arr, int i, int length, statistic& info) {
-    STACK_START
+    STACK_COUNT
     int left = 2 * i + 1;
     int right = 2 * i + 2;
     int largest = i;
@@ -332,7 +287,6 @@ static inline void heapify(std::vector<int>& arr, int i, int length, statistic& 
         EXCHANGE_INC
         heapify(arr, largest, length, info);
     }
-    STACK_END
 }
 
 /* 7.堆排序 */
@@ -363,6 +317,10 @@ void sort_counting(std::vector<int>& arr, statistic& info) {
 
     std::vector<int> count(max + 1, 0);
     std::vector<int> tArr(arr);
+
+    int needMemory = count.capacity() * sizeof(int);
+    needMemory += (tArr.capacity() * sizeof(int));
+    info.stackStart = (int*)(needMemory);
 
     for (auto x : arr) {
         count[x]++;
@@ -464,15 +422,13 @@ typedef struct {
 
 static sort_item s_sort_test[] = {
     //TEST_ITEM(sort_bubble),
-    //TEST_ITEM(sort_bubble2),
-    /*TEST_ITEM(sort_selection),*/
- /*   TEST_ITEM(sort_insertion),*/
-    TEST_ITEM(sort_shell),
+    TEST_ITEM(sort_bubble2),
+    TEST_ITEM(sort_selection),
+    TEST_ITEM(sort_insertion),
+    //TEST_ITEM(sort_shell),
+    TEST_ITEM(sort_shell22),
     TEST_ITEM(sort_merge),
-    //TEST_ITEM(sort_quick),
-    TEST_ITEM(sort_quick_mid),
-    TEST_ITEM(sort_quick_random),
-    //TEST_ITEM(sort_quick3),
+    TEST_ITEM(sort_quick),
     TEST_ITEM(sort_heap),
     
     TEST_ITEM(sort_counting),
@@ -480,42 +436,76 @@ static sort_item s_sort_test[] = {
     TEST_ITEM(sort_radix), 
 };
 
-void check(std::vector<int>& result, std::vector<int>& data) {
-    if (result.size() != data.size()) {
-        printf("check error\r\n");
-        return;
-    }
-    for (int i = 0; i < result.size(); i++) {
-        if (data[i] != result[i]) {
-            printf("check error, index:%d data[%d]=%d result[%d]=%d\r\n", i, i, data[i], i, result[i]);
+void check(std::vector<int>& data) {
+    for (int i = 1; i < data.size(); i++) {
+        if (data[i] < data[i - 1]) {
+            printf("check error, data[%d]=%d < data[%d]=%d\r\n", i, data[i], i - 1, data[i - 1]);
             return;
         }
     }
 }
 
-void sort(std::vector<int>& data, const char* testName) {
-    printf("-------------------------------------------------------------------------------------------------\r\n");
-    printf("dataLen:%d %s \r\n", data.size(), testName);
-    std::vector<int> result;
+std::map<std::string, std::vector<statistic>> g_statistics;
+void sort(std::vector<int>& data, const std::string testName) {
+    printf("-----------------------------------------------------------------------------------------------------------\r\n");
+    printf("dataLen:%llu %s \r\n", data.size(), testName.c_str());
+
     for (auto &it: s_sort_test) {
         std::vector<int> array = data;
         statistic statistic{it.name};
-        uint64_t t0 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        it.pfn_sort(array, statistic);
-        uint64_t t1 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-        statistic.time = t1 - t0;
-        printf("%-20s  time: %6lld, compration: %10lld, exchange: %10lld, CE: %10lld, stack: %8lld\r\n", 
-            statistic.name, statistic.time, statistic.comparison, statistic.exchange, statistic.comparison + statistic.exchange, statistic.stackDepth);
+        statistic.utime = -1;
 
-        if (result.size() == 0) {
-            result = array;
+        std::string tName(std::to_string(data.size()));
+        tName = tName + " " + std::string(it.name);
+
+        if (data.size() >= 1000000) {
+            std::string name(it.name);
+            if (name == "sort_bubble" || name == "sort_bubble2" || name == "sort_selection" || name == "sort_insertion") {
+                g_statistics[tName].push_back(statistic);
+                continue;
+            }
         }
-        check(result, array);
+
+        if (data.size() >= 1000000) {
+            std::string name(it.name);
+            if (name == "sort_quick" && testName == "all 0") {
+                g_statistics[tName].push_back(statistic);
+                continue;
+            }
+        }
+
+        #ifdef _WIN32
+        uint64_t t0 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        #else
+        static long clocktick = sysconf(_SC_CLK_TCK);
+        struct tms t0{};
+        times(&t0);
+        #endif
+
+        it.pfn_sort(array, statistic);
+
+        #ifdef _WIN32
+        uint64_t t1 = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        statistic.utime = (t1 - t0) * 1.0 / 1000;
+        printf("%-20s  time: %6.3f,  compration: %10lld, exchange: %10lld, stack: %8lld\r\n",
+            statistic.name, statistic.utime, statistic.comparison, statistic.exchange, int64_t(statistic.stackStart - statistic.stackStop));
+        #else
+        struct tms t1{};
+        times(&t1);
+        statistic.utime = (t1.tms_utime - t0.tms_utime) * 1.0 / clocktick;
+        statistic.stime = (t1.tms_stime - t0.tms_stime) * 1.0 / clocktick;
+        printf("%-20s  utime: %6.3f, stime: %3.3f, compration: %10lld, exchange: %10lld, stack: %8lld\r\n",
+            statistic.name, statistic.utime, statistic.stime, statistic.comparison, statistic.exchange, statistic.stackDepth);
+        #endif
+        
+        check(array);
+
+        g_statistics[tName].push_back(statistic);
     }
 }
 
 void sort_test() {
-    int dataLengths[] = { 1000, 10000, 100000, 1000000 };
+    int dataLengths[] = { 10000, 100000, 1000000, 10000000, 100000000 };
     for (auto dataLength : dataLengths) {
         std::vector<int> data(dataLength);
 
@@ -529,27 +519,6 @@ void sort_test() {
         }
         sort(data, "逆序");
 
-        std::default_random_engine random(time(NULL));
-        std::uniform_int_distribution<int> dis1(0, dataLength);
-        for (auto i = 0; i < dataLength; i++) {
-            data[i] = dis1(random);
-        }
-        sort(data, "random[0-dataLength]");
-
-        std::default_random_engine random1(time(NULL));
-        std::uniform_int_distribution<int> dis11(0, dataLength / 10);
-        for (auto i = 0; i < dataLength; i++) {
-            data[i] = dis11(random1);
-        }
-        sort(data, "random[0-dataLength/10]");
-
-        std::default_random_engine random2(time(NULL));
-        std::uniform_int_distribution<int> dis12(0, dataLength / 100);
-        for (auto i = 0; i < dataLength; i++) {
-            data[i] = dis12(random2);
-        }
-        sort(data, "random[0-dataLength/100]");
-
         for (auto i = 0; i < dataLength; i++) {
             data[i] = 0;
         }
@@ -560,6 +529,89 @@ void sort_test() {
             data[i + dataLength / 2] = dataLength / 2 - i;
         }
         sort(data, "0->max->1");
+
+        std::default_random_engine random(time(NULL));
+        std::uniform_int_distribution<int> dis1(0, dataLength);
+        for (auto i = 0; i < dataLength; i++) {
+            data[i] = dis1(random);
+        }
+        sort(data, "random[0-dataLen]");
+
+        if (dataLength > 10) {
+            std::default_random_engine random(time(NULL));
+            std::uniform_int_distribution<int> dis1(0, dataLength / 10);
+            for (auto i = 0; i < dataLength; i++) {
+                data[i] = dis1(random);
+            }
+            sort(data, "random[0-dataLen/10]");
+        }
+
+        if (dataLength > 100) {
+            std::default_random_engine random(time(NULL));
+            std::uniform_int_distribution<int> dis1(0, dataLength / 100);
+            for (auto i = 0; i < dataLength; i++) {
+                data[i] = dis1(random);
+            }
+            sort(data, "random[0-dataLen/100]");
+        }
+
+        if (dataLength > 1000) {
+            std::default_random_engine random(time(NULL));
+            std::uniform_int_distribution<int> dis1(0, dataLength / 1000);
+            for (auto i = 0; i < dataLength; i++) {
+                data[i] = dis1(random);
+            }
+            sort(data, "random[0-dataLen/1000]");
+        }
+
         printf("\r\n");
     }
+
+    printf(".......................\r\n");
+
+
+    for (auto& it : g_statistics) {
+        printf("%s\r\n", it.first.c_str());  //数据类型
+        printf("  |");
+        for (int i = 0; i < it.second.size(); i++) {
+            if (i == it.second.size() - 1) {
+                printf("%0.3f", it.second[i].utime);
+            } else {
+                printf("%0.3f<br>", it.second[i].utime);
+            }
+        }
+
+        /*printf("|");
+        for (int i = 0; i < it.second.size(); i++) {
+            if (i == it.second.size() - 1) {
+                printf("%lld", it.second[i].comparison);
+            }
+            else {
+                printf("%lld<br>", it.second[i].comparison);
+            }
+        }
+
+        printf("|");
+        for (int i = 0; i < it.second.size(); i++) {
+            if (i == it.second.size() - 1) {
+                printf("%lld", it.second[i].exchange);
+            }
+            else {
+                printf("%lld<br>", it.second[i].exchange);
+            }
+        }
+
+        printf("|");
+        for (int i = 0; i < it.second.size(); i++) {
+            if (i == it.second.size() - 1) {
+                printf("%lld", it.second[i].stackStart - it.second[i].stackStop);
+            }
+            else {
+                printf("%lld<br>", it.second[i].stackStart - it.second[i].stackStop);
+            }
+        }
+        */
+        printf("| \r\n\r\n");
+    }
+    printf(".......................\r\n");
 }
